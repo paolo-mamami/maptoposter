@@ -31,6 +31,24 @@ class GeocodeRequest(BaseModel):
     country: str = Field(..., min_length=1, max_length=100, description="Country name")
 
 
+class AllThemesPosterRequest(BaseModel):
+    """Request model for creating map posters with all available themes."""
+    city: str = Field(..., min_length=1, max_length=100, description="City name for the poster")
+    country: str = Field(..., min_length=1, max_length=100, description="Country name for the poster")
+    lat: Optional[float] = Field(None, ge=-90, le=90, description="Latitude (optional, skips geocoding)")
+    lon: Optional[float] = Field(None, ge=-180, le=180, description="Longitude (optional, skips geocoding)")
+    distance: int = Field(default=29000, ge=1000, le=50000, description="Map radius in meters")
+    format: Literal["png", "svg", "pdf"] = Field(default="png", description="Output format")
+    country_label: Optional[str] = Field(None, max_length=100, description="Override country text on poster")
+    
+    @field_validator('lat', 'lon')
+    @classmethod
+    def validate_coordinates(cls, v, info):
+        """Ensure both lat and lon are provided together."""
+        # This will be validated in the API endpoint logic
+        return v
+
+
 class CoordinatesResponse(BaseModel):
     """Response model for coordinates."""
     latitude: float = Field(..., description="Latitude coordinate")

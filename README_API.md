@@ -156,6 +156,84 @@ curl -X POST "http://localhost:8000/api/posters" \
   }'
 ```
 
+#### `POST /api/posters/all-themes`
+Create map posters for all available themes (asynchronous operation).
+
+Generates a poster for each available theme and returns them in a ZIP file.
+
+**Request Body:**
+```json
+{
+  "city": "Paris",
+  "country": "France",
+  "lat": 48.8566,
+  "lon": 2.3522,
+  "distance": 10000,
+  "format": "png",
+  "country_label": "FRANCE"
+}
+```
+
+**Parameters:**
+- `city` (string, required): City name for the poster text
+- `country` (string, required): Country name for the poster text
+- `lat` (float, optional): Latitude coordinate (-90 to 90)
+- `lon` (float, optional): Longitude coordinate (-180 to 180)
+- `distance` (integer, optional): Map radius in meters (1000-50000, default: 29000)
+- `format` (string, optional): Output format - "png", "svg", or "pdf" (default: "png")
+- `country_label` (string, optional): Override country text on poster
+
+**Note:** This endpoint generates posters for ALL available themes. The result is a ZIP file containing all posters. This operation takes significantly longer than generating a single poster.
+
+**Response (202 Accepted):**
+```json
+{
+  "job_id": "456e7890-e89b-12d3-a456-426614174123",
+  "status": "pending",
+  "message": "All-themes poster generation started",
+  "status_url": "/api/jobs/456e7890-e89b-12d3-a456-426614174123"
+}
+```
+
+**Example with curl:**
+```bash
+curl -X POST "http://localhost:8000/api/posters/all-themes" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "city": "Venice",
+    "country": "Italy",
+    "distance": 4000
+  }'
+```
+
+**Example with coordinates:**
+```bash
+curl -X POST "http://localhost:8000/api/posters/all-themes" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "city": "Barcelona",
+    "country": "Spain",
+    "lat": 41.3851,
+    "lon": 2.1734,
+    "distance": 8000,
+    "format": "png"
+  }'
+```
+
+**Download Result:**
+The completed job will provide a ZIP file containing posters for all themes:
+```bash
+curl -O -J "http://localhost:8000/api/jobs/{job_id}/download"
+# Downloads: venice_all_themes_20260121_103145.zip
+```
+    "lat": 35.6762,
+    "lon": 139.6503,
+    "theme": "japanese_ink",
+    "distance": 15000,
+    "format": "pdf"
+  }'
+```
+
 ---
 
 ### Jobs

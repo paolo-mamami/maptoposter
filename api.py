@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import uuid
+import zipfile
 from datetime import datetime
 from typing import Dict, Optional
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from models import (
     PosterRequest,
+    AllThemesPosterRequest,
     GeocodeRequest,
     CoordinatesResponse,
     ThemeInfo,
@@ -139,6 +141,101 @@ async def generate_poster_task(job_id: str, request: PosterRequest):
         )
 
 
+async def generate_all_themes_task(job_id: str, request: AllThemesPosterRequest):
+    """Background task to generate posters for all themes and create a ZIP file."""
+    try:
+        logger.info(f"Starting all-themes poster generation for job {job_id}")
+        update_job_status(job_id, "processing")
+        
+        # Get coordinates (either provided or geocoded)
+        if request.lat is not None and request.lon is not None:
+            coords = (request.lat, request.lon)
+            logger.info(f"Using provided coordinates: {coords}")
+        else:
+            logger.info(f"Geocoding {request.city}, {request.country}")
+            coords = await asyncio.to_thread(
+                get_coordinates, request.city, request.country
+            )
+        
+        # Get all available themes
+        available_themes = await asyncio.to_thread(get_available_themes)
+        logger.info(f"Generating posters for {len(available_themes)} themes")
+        
+        # Generate posters for all themes
+        poster_files = []
+        for theme_name in available_themes:
+            try:
+                logger.info(f"Generating poster with theme: {theme_name}")
+                
+                # Load theme
+                theme = await asyncio.to_thread(load_theme, theme_name)
+                
+                # Generate output filename
+                output_file = generate_output_filename(
+                    request.city, theme_name, request.format
+                )
+                
+                # Create poster
+                await asyncio.to_thread(
+                    create_poster,
+                    request.city,
+                    request.country,
+                    coords,
+                    request.distance,
+                    output_file,
+                    request.format,
+                    theme,
+                    country_label=request.country_label,
+                )
+                
+                poster_files.append(output_file)
+                logger.info(f"Completed poster with theme: {theme_name}")
+                
+            except Exception as e:
+                logger.error(f"Error generating poster for theme {theme_name}: {str(e)}")
+                # Continue with other themes even if one fails
+                continue
+        
+        if not poster_files:
+            raise RuntimeError("Failed to generate any posters")
+        
+        # Create ZIP file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        city_slug = request.city.lower().replace(' ', '_')
+        zip_filename = f"{city_slug}_all_themes_{timestamp}.zip"
+        zip_path = os.path.join(POSTERS_DIR, zip_filename)
+        
+        logger.info(f"Creating ZIP file: {zip_path}")
+        await asyncio.to_thread(create_zip_file, zip_path, poster_files)
+        
+        # Update job as completed
+        update_job_status(
+            job_id,
+            "completed",
+            completed_at=datetime.now(),
+            poster_path=zip_path,
+        )
+        logger.info(f"All-themes poster generation completed for job {job_id}")
+        
+    except Exception as e:
+        logger.error(f"Error generating all-themes posters for job {job_id}: {str(e)}", exc_info=True)
+        update_job_status(
+            job_id,
+            "failed",
+            completed_at=datetime.now(),
+            error=str(e),
+        )
+
+
+def create_zip_file(zip_path: str, files: list):
+    """Create a ZIP file containing the specified files."""
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in files:
+            if os.path.exists(file_path):
+                # Add file to ZIP with just the filename (no path)
+                zipf.write(file_path, os.path.basename(file_path))
+
+
 @app.get("/", tags=["General"])
 async def root():
     """Root endpoint with API information."""
@@ -206,6 +303,43 @@ async def create_poster_endpoint(
     )
 
 
+@app.post(
+    "/api/posters/all-themes",
+    response_model=PosterResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["Posters"],
+)
+async def create_all_themes_poster_endpoint(
+    request: AllThemesPosterRequest,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Create map posters for all available themes (async operation).
+    
+    Generates a poster for each available theme and returns them as a ZIP file.
+    Returns a job ID that can be used to check status and download the ZIP file.
+    """
+    # Validate coordinates if provided
+    if (request.lat is None) != (request.lon is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Both latitude and longitude must be provided together",
+        )
+    
+    # Create job
+    job_id = create_job(request.model_dump())
+    
+    # Start background task
+    background_tasks.add_task(generate_all_themes_task, job_id, request)
+    
+    return PosterResponse(
+        job_id=job_id,
+        status="pending",
+        message="All-themes poster generation started",
+        status_url=f"/api/jobs/{job_id}",
+    )
+
+
 @app.get("/api/jobs/{job_id}", response_model=JobStatusResponse, tags=["Jobs"])
 async def get_job_status(job_id: str):
     """Check the status of a poster generation job."""
@@ -260,6 +394,7 @@ async def download_poster(job_id: str):
         ".png": "image/png",
         ".svg": "image/svg+xml",
         ".pdf": "application/pdf",
+        ".zip": "application/zip",
     }
     media_type = media_type_map.get(ext, "application/octet-stream")
     
