@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Cache and data
+cache/
+.cache/
+data/
+*.db
+
+# Generated posters
+posters/*.png
+posters/*.svg
+posters/*.pdf
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+README.md
+README_API.md
+*.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Keep structure but ignore content
+!posters/.gitkeep
+!data/.gitkeep
+!cache/.gitkeep

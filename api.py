@@ -35,6 +35,12 @@ from create_map_poster import (
     FONTS,
     POSTERS_DIR,
 )
+from database import (
+    create_job_db,
+    get_job_db,
+    update_job_status_db,
+    get_all_jobs_db,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -61,38 +67,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Job tracking (in-memory storage)
-# In production, use Redis or a database
-jobs: Dict[str, Dict] = {}
-
-
-def get_job(job_id: str) -> Optional[Dict]:
-    """Retrieve job information by ID."""
-    return jobs.get(job_id)
-
-
 def create_job(request_data: dict) -> str:
     """Create a new job and return job ID."""
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {
-        "job_id": job_id,
-        "status": "pending",
-        "created_at": datetime.now(),
-        "completed_at": None,
-        "error": None,
-        "poster_path": None,
-        "request_data": request_data,
-    }
+    create_job_db(job_id, request_data)
     logger.info(f"Created job {job_id}")
     return job_id
 
 
 def update_job_status(job_id: str, status: str, **kwargs):
     """Update job status and other fields."""
-    if job_id in jobs:
-        jobs[job_id]["status"] = status
-        jobs[job_id].update(kwargs)
-        logger.info(f"Updated job {job_id}: status={status}")
+    update_job_status_db(job_id, status, **kwargs)
+    logger.info(f"Updated job {job_id}: status={status}")
 
 
 async def generate_poster_task(job_id: str, request: PosterRequest):
@@ -222,45 +208,45 @@ async def create_poster_endpoint(
 @app.get("/api/jobs/{job_id}", response_model=JobStatusResponse, tags=["Jobs"])
 async def get_job_status(job_id: str):
     """Check the status of a poster generation job."""
-    job = get_job(job_id)
-    if not job:
+    job_obj = get_job_db(job_id)
+    if not job_obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found",
         )
     
     download_url = None
-    if job["status"] == "completed" and job["poster_path"]:
+    if job_obj.status == "completed" and job_obj.poster_path:
         download_url = f"/api/jobs/{job_id}/download"
     
     return JobStatusResponse(
-        job_id=job["job_id"],
-        status=job["status"],
-        created_at=job["created_at"],
-        completed_at=job["completed_at"],
-        error=job["error"],
+        job_id=job_obj.job_id,
+        status=job_obj.status,
+        created_at=job_obj.created_at,
+        completed_at=job_obj.completed_at,
+        error=job_obj.error,
         download_url=download_url,
-        poster_path=job["poster_path"],
+        poster_path=job_obj.poster_path,
     )
 
 
 @app.get("/api/jobs/{job_id}/download", tags=["Jobs"])
 async def download_poster(job_id: str):
     """Download the generated poster file."""
-    job = get_job(job_id)
-    if not job:
+    job_obj = get_job_db(job_id)
+    if not job_obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found",
         )
     
-    if job["status"] != "completed":
+    if job_obj.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Job is not completed yet. Current status: {job['status']}",
+            detail=f"Job is not completed yet. Current status: {job_obj.status}",
         )
     
-    poster_path = job["poster_path"]
+    poster_path = job_obj.poster_path
     if not poster_path or not os.path.exists(poster_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

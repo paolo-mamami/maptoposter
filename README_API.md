@@ -2,9 +2,37 @@
 
 A FastAPI-based web service for generating beautiful city map posters using OpenStreetMap data.
 
+## Features
+
+- **RESTful API** for poster generation
+- **Asynchronous job processing** with SQLite database storage
+- **Multiple output formats**: PNG, SVG, PDF
+- **Coordinate support**: Use lat/lon or geocode city/country
+- **17+ themes** including noir, blueprint, sunset, and more
+- **Docker support** with docker-compose for easy deployment
+- **Persistent storage** for jobs, posters, and cache
+
 ## Quick Start
 
-### Installation
+### Option 1: Docker (Recommended)
+
+```bash
+# Setup and build
+.\setup_docker.ps1
+
+# Start the service
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Test the API
+.\test_api.ps1
+```
+
+See [DOCKER.md](DOCKER.md) for detailed Docker deployment guide.
+
+### Option 2: Local Development
 
 1. Install dependencies:
 ```bash
@@ -449,6 +477,20 @@ All endpoints return standard error responses:
 ### Environment Variables
 
 - `CACHE_DIR`: Cache directory path (default: "cache")
+- `DB_DIR`: Database directory path (default: "data")
+
+### Database
+
+Jobs are stored in a SQLite database (`data/jobs.db`) with the following schema:
+- `job_id`: Unique job identifier (UUID)
+- `status`: Job status (pending, processing, completed, failed)
+- `created_at`: Job creation timestamp
+- `completed_at`: Job completion timestamp
+- `error`: Error message if failed
+- `poster_path`: Path to generated poster file
+- `request_data`: Original request parameters (JSON)
+
+The database is automatically created on first run and persists across restarts.
 
 ### CORS Configuration
 

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  map-poster-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: map-poster-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_DIR=/app/data
+      - CACHE_DIR=/app/cache
+    volumes:
+      # Mount database directory
+      - ./data:/app/data
+      # Mount posters output directory
+      - ./posters:/app/posters
+      # Mount cache directory
+      - ./cache:/app/cache
+      # Mount fonts directory (read-only)
+      - ./fonts:/app/fonts:ro
+      # Mount themes directory (read-only)
+      - ./themes:/app/themes:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
