@@ -116,6 +116,7 @@ async def generate_poster_task(job_id: str, request: PosterRequest):
             request.distance,
             output_file,
             request.format,
+            theme,
             country_label=request.country_label,
         )
         

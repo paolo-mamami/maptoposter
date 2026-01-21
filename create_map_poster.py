@@ -177,7 +177,7 @@ def create_gradient_fade(ax, color, location='bottom', zorder=10):
     ax.imshow(gradient, extent=[xlim[0], xlim[1], y_bottom, y_top], 
               aspect='auto', cmap=custom_cmap, zorder=zorder, origin='lower')
 
-def get_edge_colors_by_type(G):
+def get_edge_colors_by_type(G, theme):
     """
     Assigns colors to edges based on road type hierarchy.
     Returns a list of colors corresponding to each edge in the graph.
@@ -194,17 +194,17 @@ def get_edge_colors_by_type(G):
         
         # Assign color based on road type
         if highway in ['motorway', 'motorway_link']:
-            color = THEME['road_motorway']
+            color = theme['road_motorway']
         elif highway in ['trunk', 'trunk_link', 'primary', 'primary_link']:
-            color = THEME['road_primary']
+            color = theme['road_primary']
         elif highway in ['secondary', 'secondary_link']:
-            color = THEME['road_secondary']
+            color = theme['road_secondary']
         elif highway in ['tertiary', 'tertiary_link']:
-            color = THEME['road_tertiary']
+            color = theme['road_tertiary']
         elif highway in ['residential', 'living_street', 'unclassified']:
-            color = THEME['road_residential']
+            color = theme['road_residential']
         else:
-            color = THEME['road_default']
+            color = theme['road_default']
         
         edge_colors.append(color)
     
@@ -428,7 +428,7 @@ def fetch_features(point, dist, tags, name):
         return None
 
 
-def create_poster(city, country, point, dist, output_file, output_format, country_label=None, name_label=None):
+def create_poster(city, country, point, dist, output_file, output_format, theme, country_label=None, name_label=None):
     print(f"\nGenerating map for {city}, {country}...")
     
     # Progress bar for data fetching
@@ -454,8 +454,8 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
     
     # 2. Setup Plot
     print("Rendering map...")
-    fig, ax = plt.subplots(figsize=(12, 16), facecolor=THEME['bg'])
-    ax.set_facecolor(THEME['bg'])
+    fig, ax = plt.subplots(figsize=(12, 16), facecolor=theme['bg'])
+    ax.set_facecolor(theme['bg'])
     ax.set_position((0.0, 0.0, 1.0, 1.0))
 
     # Project graph to a metric CRS so distances and aspect are linear (meters)
@@ -472,7 +472,7 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
                 water_polys = ox.projection.project_gdf(water_polys)
             except Exception:
                 water_polys = water_polys.to_crs(G_proj.graph['crs'])
-            water_polys.plot(ax=ax, facecolor=THEME['water'], edgecolor='none', zorder=1)
+            water_polys.plot(ax=ax, facecolor=theme['water'], edgecolor='none', zorder=1)
     
     if parks is not None and not parks.empty:
         # Filter to only polygon/multipolygon geometries to avoid point features showing as dots
@@ -483,11 +483,11 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
                 parks_polys = ox.projection.project_gdf(parks_polys)
             except Exception:
                 parks_polys = parks_polys.to_crs(G_proj.graph['crs'])
-            parks_polys.plot(ax=ax, facecolor=THEME['parks'], edgecolor='none', zorder=2)
+            parks_polys.plot(ax=ax, facecolor=theme['parks'], edgecolor='none', zorder=2)
     
     # Layer 2: Roads with hierarchy coloring
     print("Applying road hierarchy colors...")
-    edge_colors = get_edge_colors_by_type(G_proj)
+    edge_colors = get_edge_colors_by_type(G_proj, theme)
     edge_widths = get_edge_widths_by_type(G_proj)
 
     # Determine cropping limits to maintain the poster aspect ratio
@@ -495,7 +495,7 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
 
     # Plot the projected graph and then apply the cropped limits
     ox.plot_graph(
-        G_proj, ax=ax, bgcolor=THEME['bg'],
+        G_proj, ax=ax, bgcolor=theme['bg'],
         node_size=0,
         edge_color=edge_colors,
         edge_linewidth=edge_widths,
@@ -506,8 +506,8 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
     ax.set_ylim(crop_ylim)
     
     # Layer 3: Gradients (Top and Bottom)
-    create_gradient_fade(ax, THEME['gradient_color'], location='bottom', zorder=10)
-    create_gradient_fade(ax, THEME['gradient_color'], location='top', zorder=10)
+    create_gradient_fade(ax, theme['gradient_color'], location='bottom', zorder=10)
+    create_gradient_fade(ax, theme['gradient_color'], location='top', zorder=10)
     
     # 4. Typography using Roboto font
     if FONTS:
@@ -541,11 +541,11 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
 
     # --- BOTTOM TEXT ---
     ax.text(0.5, 0.14, spaced_city, transform=ax.transAxes,
-            color=THEME['text'], ha='center', fontproperties=font_main_adjusted, zorder=11)
+            color=theme['text'], ha='center', fontproperties=font_main_adjusted, zorder=11)
     
     country_text = country_label if country_label is not None else country
     ax.text(0.5, 0.10, country_text.upper(), transform=ax.transAxes,
-            color=THEME['text'], ha='center', fontproperties=font_sub, zorder=11)
+            color=theme['text'], ha='center', fontproperties=font_sub, zorder=11)
     
     lat, lon = point
     coords = f"{lat:.4f}° N / {lon:.4f}° E" if lat >= 0 else f"{abs(lat):.4f}° S / {lon:.4f}° E"
@@ -553,10 +553,10 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
         coords = coords.replace("E", "W")
     
     ax.text(0.5, 0.07, coords, transform=ax.transAxes,
-            color=THEME['text'], alpha=0.7, ha='center', fontproperties=font_coords, zorder=11)
+            color=theme['text'], alpha=0.7, ha='center', fontproperties=font_coords, zorder=11)
     
     ax.plot([0.4, 0.6], [0.125, 0.125], transform=ax.transAxes, 
-            color=THEME['text'], linewidth=1, zorder=11)
+            color=theme['text'], linewidth=1, zorder=11)
 
     # --- ATTRIBUTION (bottom right) ---
     if FONTS:
@@ -565,14 +565,14 @@ def create_poster(city, country, point, dist, output_file, output_format, countr
         font_attr = FontProperties(family='monospace', size=8)
     
     ax.text(0.98, 0.02, "© OpenStreetMap contributors", transform=ax.transAxes,
-            color=THEME['text'], alpha=0.5, ha='right', va='bottom', 
+            color=theme['text'], alpha=0.5, ha='right', va='bottom', 
             fontproperties=font_attr, zorder=11)
 
     # 5. Save
     print(f"Saving to {output_file}...")
 
     fmt = output_format.lower()
-    save_kwargs = dict(facecolor=THEME["bg"], bbox_inches="tight", pad_inches=0.05,)
+    save_kwargs = dict(facecolor=theme["bg"], bbox_inches="tight", pad_inches=0.05,)
 
     # DPI matters mainly for raster formats
     if fmt == "png":
@@ -751,9 +751,9 @@ Examples:
             coords = get_coordinates(args.city, args.country)
         
         for theme_name in themes_to_generate:
-            THEME = load_theme(theme_name)
+            theme = load_theme(theme_name)
             output_file = generate_output_filename(args.city, theme_name, args.format)
-            create_poster(args.city, args.country, coords, args.distance, output_file, args.format, country_label=args.country_label)
+            create_poster(args.city, args.country, coords, args.distance, output_file, args.format, theme, country_label=args.country_label)
         
         print("\n" + "=" * 50)
         print("✓ Poster generation complete!")
