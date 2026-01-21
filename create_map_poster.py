@@ -624,11 +624,16 @@ City Map Poster Generator
 
 Usage:
   python create_map_poster.py --city <city> --country <country> [options]
+  python create_map_poster.py --lat <latitude> --lon <longitude> --city <city> --country <country> [options]
 
 Examples:
   # Iconic grid patterns
   python create_map_poster.py -c "New York" -C "USA" -t noir -d 12000           # Manhattan grid
   python create_map_poster.py -c "Barcelona" -C "Spain" -t warm_beige -d 8000   # Eixample district grid
+  
+  # Using coordinates instead of geocoding
+  python create_map_poster.py --lat 40.7128 --lon -74.0060 -c "New York" -C "USA" -t noir
+  python create_map_poster.py --lat 48.8566 --lon 2.3522 -c "Paris" -C "France" -t pastel_dream
   
   # Waterfront & canals
   python create_map_poster.py -c "Venice" -C "Italy" -t blueprint -d 4000       # Canal network
@@ -657,8 +662,10 @@ Examples:
   python create_map_poster.py --list-themes
 
 Options:
-  --city, -c        City name (required)
-  --country, -C     Country name (required)
+  --city, -c        City name (required for poster text)
+  --country, -C     Country name (required for poster text)
+  --lat             Latitude coordinate (optional, skips geocoding if provided with --lon)
+  --lon             Longitude coordinate (optional, skips geocoding if provided with --lat)
   --country-label   Override country text displayed on poster
   --theme, -t       Theme name (default: feature_based)
   --all-themes      Generate posters for all themes
@@ -708,13 +715,16 @@ Examples:
   python create_map_poster.py --city "New York" --country "USA"
   python create_map_poster.py --city Tokyo --country Japan --theme midnight_blue
   python create_map_poster.py --city Paris --country France --theme noir --distance 15000
+  python create_map_poster.py --lat 48.8566 --lon 2.3522 --city Paris --country France
   python create_map_poster.py --list-themes
         """
     )
     
-    parser.add_argument('--city', '-c', type=str, help='City name')
-    parser.add_argument('--country', '-C', type=str, help='Country name')
+    parser.add_argument('--city', '-c', type=str, help='City name (required for poster text)')
+    parser.add_argument('--country', '-C', type=str, help='Country name (required for poster text)')
     parser.add_argument('--country-label', dest='country_label', type=str, help='Override country text displayed on poster')
+    parser.add_argument('--lat', '--latitude', type=float, help='Latitude coordinate (if provided, skips geocoding)')
+    parser.add_argument('--lon', '--longitude', type=float, help='Longitude coordinate (if provided, skips geocoding)')
     parser.add_argument('--theme', '-t', type=str, default='feature_based', help='Theme name (default: feature_based)')
     parser.add_argument('--all-themes', '--All-themes', dest='all_themes', action='store_true', help='Generate posters for all themes')
     parser.add_argument('--distance', '-d', type=int, default=29000, help='Map radius in meters (default: 29000)')
@@ -735,7 +745,13 @@ Examples:
     
     # Validate required arguments
     if not args.city or not args.country:
-        print("Error: --city and --country are required.\n")
+        print("Error: --city and --country are required for poster text.\n")
+        print_examples()
+        sys.exit(1)
+    
+    # Validate coordinate arguments
+    if (args.lat is not None) != (args.lon is not None):
+        print("Error: Both --lat and --lon must be provided together.\n")
         print_examples()
         sys.exit(1)
     
@@ -759,7 +775,13 @@ Examples:
     
     # Get coordinates and generate poster
     try:
-        coords = get_coordinates(args.city, args.country)
+        # Use provided coordinates if available, otherwise geocode
+        if args.lat is not None and args.lon is not None:
+            coords = (args.lat, args.lon)
+            print(f"✓ Using provided coordinates: {coords[0]}, {coords[1]}")
+        else:
+            coords = get_coordinates(args.city, args.country)
+        
         for theme_name in themes_to_generate:
             THEME = load_theme(theme_name)
             output_file = generate_output_filename(args.city, theme_name, args.format)
